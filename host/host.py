@@ -21,24 +21,18 @@ def host(file_path):
         print(f"Error: File {file_path} not found.")
         return
 
-    # Serve from the directory where this script (host.py) is located
-    # This allows access to other files in the project structure (e.g., ../styles.css)
     server_root = os.path.dirname(os.path.abspath(__file__))
     
-    # Calculate the path of the target file relative to the server root
     try:
         relative_target = os.path.relpath(abs_path, server_root)
     except ValueError:
-        # Fallback if on different drives or something weird
         print(f"Error: {file_path} must be within the {server_root} directory structure.")
         return
 
-    # Ensure we use forward slashes for URLs even on Windows
     target_url_path = relative_target.replace(os.sep, '/')
 
     class Handler(http.server.SimpleHTTPRequestHandler):
         def __init__(self, *args, **kwargs):
-            # Support for directory argument (Python 3.7+)
             if sys.version_info >= (3, 7):
                 kwargs['directory'] = server_root
             else:
@@ -55,7 +49,6 @@ def host(file_path):
 
     def run():
         global _server
-        # Allow reuse of address to avoid "Address already in use" errors
         socketserver.TCPServer.allow_reuse_address = True
         try:
             with socketserver.TCPServer(("", PORT), Handler) as httpd:
