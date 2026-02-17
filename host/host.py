@@ -40,9 +40,21 @@ def host(file_path):
             super().__init__(*args, **kwargs)
         
         def do_GET(self):
+            # Security: Prevent access to .py files
+            # Split by ? and # to handle query params and fragments, and make case-insensitive
+            clean_path = self.path.split('?')[0].split('#')[0]
+            if clean_path.lower().endswith('.py'):
+                self.send_error(403, "Access denied: serving .py files is restricted.")
+                return
+
             if self.path == '/':
                 self.path = '/' + target_url_path
             return http.server.SimpleHTTPRequestHandler.do_GET(self)
+
+        def list_directory(self, path):
+            # Security: Disable directory listings
+            self.send_error(403, "Access denied: directory listing is disabled.")
+            return None
 
         def log_message(self, format, *args):
             pass  # Quiet mode
@@ -51,7 +63,9 @@ def host(file_path):
         global _server
         socketserver.TCPServer.allow_reuse_address = True
         try:
-            with socketserver.TCPServer(("", PORT), Handler) as httpd:
+            # Security: Bind to localhost (127.0.0.1) instead of all interfaces ("")
+            # to restrict access to the local machine during setup.
+            with socketserver.TCPServer(("127.0.0.1", PORT), Handler) as httpd:
                 _server = httpd
                 print(f"Hosting started.\nApp running at: http://localhost:{PORT}/")
                 httpd.serve_forever()
