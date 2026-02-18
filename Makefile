@@ -40,6 +40,7 @@ EXT_SUFFIX = $(shell python3-config --extension-suffix 2>/dev/null || echo ".so"
 
 # ── Build artefact names ──────────────────────────────────────────────────────
 TARGET              = meteorui
+LAUNCHER            = meteor
 MODULE_SRC          = meteor_module.cpp
 MODULE_OUT          = meteor_cpp$(EXT_SUFFIX)
 CLIENT_INTRO        = meteorui-intro
@@ -55,9 +56,11 @@ COMMON_CXXFLAGS = $(CXXSTD) -O2 -Wall -fPIC \
 # ─────────────────────────────────────────────────────────────────────────────
 # Default target: build the Qt launcher
 # ─────────────────────────────────────────────────────────────────────────────
-.PHONY: all clean module client
+.PHONY: all clean module client launcher
 
-all: $(TARGET) module client
+all: $(LAUNCHER) module client
+
+launcher: $(LAUNCHER)
 
 client: $(CLIENT_INTRO) $(CLIENT_ACCOUNTS_UI)
 
@@ -69,6 +72,22 @@ $(TARGET): main.cpp pybridge.h
 	@echo ""
 	@echo "✓  Built launcher → $(TARGET)"
 	@echo "   Run with: ./$(TARGET)"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Main unified meteor launcher
+# ─────────────────────────────────────────────────────────────────────────────
+
+meteor_launcher_moc.cpp: meteor_launcher.h
+	$(MOC) $< -o $@
+
+$(LAUNCHER): meteor_launcher.cpp meteor_launcher_moc.cpp meteor_launcher.h
+	$(CXX) $(COMMON_CXXFLAGS) \
+	    -o $@ meteor_launcher.cpp meteor_launcher_moc.cpp \
+	    $(QT_LIBS) \
+	    $(PY_LIBS)
+	@echo ""
+	@echo "✓  Built main launcher → $(LAUNCHER)"
+	@echo "   Run with: ./$(LAUNCHER)"
 
 # ─────────────────────────────────────────────────────────────────────────────
 # C++ client modules (intro screen and accounts API)
@@ -130,6 +149,6 @@ $(MODULE_OUT): $(MODULE_SRC)
 
 # ─────────────────────────────────────────────────────────────────────────────
 clean:
-	rm -f $(TARGET) meteor_cpp*.so meteor_cpp*.pyd
+	rm -f $(TARGET) $(LAUNCHER) meteor_cpp*.so meteor_cpp*.pyd meteor_launcher_moc.cpp
 	rm -f $(CLIENT_INTRO) $(CLIENT_ACCOUNTS_UI) $(CLIENT_ACCOUNTS) client/*.o client/*.a client/*_moc.cpp
 	@echo "✓  Cleaned build artefacts"
