@@ -13,7 +13,7 @@ def what():
     server = QtWidgets.QPushButton("Server"); buttons.addWidgets(server)
     layout.addLayout(buttons)
     window.setLayout(layout)
-
+ 
 if __name__ == "__main__":
     app = QtWidgets.QApplication(sys.argv)
-    what()
+    what()  cgghbbbgvvfgcv  

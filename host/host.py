@@ -35,14 +35,7 @@ def host(file_path):
 
     class Handler(http.server.SimpleHTTPRequestHandler):
         def __init__(self, *args, **kwargs):
-<<<<<<< HEAD
-            if sys.version_info >= (3, 7):
-                kwargs['directory'] = server_root
-            else:
-                os.chdir(server_root)
-=======
             kwargs['directory'] = server_root
->>>>>>> 0812797 (commit.)
             super().__init__(*args, **kwargs)
         
         def do_GET(self):
