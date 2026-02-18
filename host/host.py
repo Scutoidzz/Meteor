@@ -4,8 +4,10 @@ import threading
 import time
 import os
 import sys
+import json
+import urllib.parse
 
-PORT = 8000
+PORT = 8304
 _server = None
 _server_thread = None
 
@@ -33,19 +35,59 @@ def host(file_path):
 
     class Handler(http.server.SimpleHTTPRequestHandler):
         def __init__(self, *args, **kwargs):
+<<<<<<< HEAD
             if sys.version_info >= (3, 7):
                 kwargs['directory'] = server_root
             else:
                 os.chdir(server_root)
+=======
+            kwargs['directory'] = server_root
+>>>>>>> 0812797 (commit.)
             super().__init__(*args, **kwargs)
         
         def do_GET(self):
+            parsed_path = urllib.parse.urlparse(self.path)
+            query_params = urllib.parse.parse_qs(parsed_path.query)
+
+
+
+            if self.path == '/api/covers':
+                self.send_response(200)
+                self.send_header('Content-type', 'application/json')
+                self.end_headers()
+                
+                covers_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'covers')
+                covers = []
+                if os.path.exists(covers_dir):
+                    for f in os.listdir(covers_dir):
+                        if f.lower().endswith(('.png', '.jpg', '.jpeg', '.gif')):
+                            covers.append(f"covers/{f}")
+                
+                self.wfile.write(json.dumps(covers).encode())
+                return
+            
+            if self.path == '/api/server_info':
+                self.send_response(200)
+                self.send_header('Content-type', 'application/json')
+                self.end_headers()
+                
+                server_info = {
+                    'version': '1.0.0',
+                    'machine': os.uname().nodename,
+                    'description': 'A web server for Meteor',
+                    'owner': os.getlogin(),
+                    'url': 'https://github.com/scutoidzz/meteor'
+                }
+                
+                self.wfile.write(json.dumps(server_info).encode())
+                return
+
             if self.path == '/':
                 self.path = '/' + target_url_path
             return http.server.SimpleHTTPRequestHandler.do_GET(self)
-
+        
         def log_message(self, format, *args):
-            pass  # Quiet mode
+            pass
 
     def run():
         global _server
@@ -63,10 +105,6 @@ def host(file_path):
     _server_thread.start()
 
 def stop_host(duration_ms=0):
-    """
-    Stops the hosting server.
-    duration_ms: Time in milliseconds to wait before stopping.
-    """
     global _server
     
     if duration_ms > 0:
