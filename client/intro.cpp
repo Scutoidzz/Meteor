@@ -1,173 +1,123 @@
-/**
- * client/intro.cpp — Meteor intro screen (C++ native implementation)
- * ------------------------------------------------------------------
- * Pure Qt6 C++ implementation of the intro screen that was originally in intro.py.
- *
- * This is a native C++ implementation that:
- *   • Displays a cover collage fetched from a remote server
- *   • Provides server address input and validation
- *   • Supports login/signup buttons
- *   • Loads configuration from a JSON file
- *
- * This can be used as an alternative to the Python PyQt6 version when pure C++
- * performance is desired, or can be compiled alongside intro.py for flexibility.
- */
-
 #include "intro.h"
-
+#include "../host/host.h"
 #include <QApplication>
+#include <QScreen>
 #include <QVBoxLayout>
 #include <QHBoxLayout>
-#include <QLineEdit>
-#include <QPushButton>
-#include <QLabel>
 #include <QScrollArea>
 #include <QMessageBox>
-#include <QScreen>
-#include <QPixmap>
-#include <QThread>
+#include <QCloseEvent>
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QJsonArray>
 #include <QNetworkAccessManager>
 #include <QNetworkRequest>
-#include <QUrl>
+#include <QNetworkReply>
 #include <QEventLoop>
-#include <QTimer>
-#include <QJsonDocument>
-#include <QJsonArray>
-#include <QJsonObject>
-#include <QFile>
 #include <QDir>
-#include <QDebug>
+#include <QFile>
 
-#include <string>
-#include <vector>
-#include <memory>
-#include <regex>
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Helper functions
-// ─────────────────────────────────────────────────────────────────────────────
-
-/**
- * Assemble a URL, ensuring scheme and no double-slashes.
- * Equivalent to Python's _build_url().
- */
-static QString buildUrl(const QString& base, const QString& path) {
-    QString urlBase = base;
-    if (!urlBase.startsWith("http://") && !urlBase.startsWith("https://")) {
-        urlBase = "http://" + urlBase;
+static QJsonObject readConfig() {
+    QString configPath = QCoreApplication::applicationDirPath() + "/../user_files/config.json";
+    if (!QFile::exists(configPath)) {
+        configPath = QDir::currentPath() + "/user_files/config.json";
     }
-    // Remove trailing slash from base and leading slash from path
-    if (urlBase.endsWith("/")) {
-        urlBase.chop(1);
-    }
-    QString urlPath = path;
-    if (urlPath.startsWith("/")) {
-        urlPath.remove(0, 1);
-    }
-    return urlBase + "/" + urlPath;
-}
-
-/**
- * Validate if a string is a plausible host[:port] string.
- * Equivalent to Python's _validate_address().
- */
-static bool validateAddress(const QString& addr) {
-    // Pattern: hostname/IP with optional port
-    // Allows: alphanumeric, dots, hyphens, colons for port
-    static const std::regex pattern("^[\\w.\\-]+(:\\d{1,5})?$");
-    return std::regex_match(addr.toStdString(), pattern);
-}
-
-/**
- * Read a flat JSON config file.
- * Equivalent to Python's _read_config().
- */
-static QJsonObject readConfig(const QString& path) {
-    QFile file(path);
-    if (!file.exists() || !file.open(QIODevice::ReadOnly | QIODevice::Text)) {
-        return QJsonObject();
-    }
-    QByteArray data = file.readAll();
-    file.close();
-    QJsonDocument doc = QJsonDocument::fromJson(data);
-    if (doc.isObject()) {
-        return doc.object();
+    QFile file(configPath);
+    if (file.open(QIODevice::ReadOnly)) {
+        return QJsonDocument::fromJson(file.readAll()).object();
     }
     return QJsonObject();
 }
 
-/**
- * Calculate ideal window size based on screen dimensions.
- * Equivalent to Python's _ideal_window_size().
- */
-static std::pair<int, int> idealWindowSize(int screenW, int screenH, double fraction = 0.6) {
-    int width = std::max(400, static_cast<int>(screenW * fraction));
-    int height = std::max(300, static_cast<int>(screenH * fraction));
-    return {width, height};
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// CoverFetcher implementation
-// ─────────────────────────────────────────────────────────────────────────────
-
-CoverFetcher::CoverFetcher(const QString& serverUrl, QObject* parent)
-    : QObject(parent), m_serverUrl(serverUrl), m_manager(nullptr) {}
-
-void CoverFetcher::fetch() {
-    QThread* thread = new QThread(this);
-    connect(thread, &QThread::started, this, &CoverFetcher::run);
-    connect(this, &CoverFetcher::finished, thread, &QThread::quit);
-    connect(thread, &QThread::finished, thread, &QObject::deleteLater);
-    moveToThread(thread);
-    thread->start();
-}
-
-void CoverFetcher::run() {
-    try {
-        // For now, emit empty covers list as a placeholder
-        // A full implementation would use QNetworkAccessManager to fetch from the server
-        // This is simplified for the initial C++ port
-        emit coversFound(QStringList());
-        emit finished();
-    } catch (const std::exception& e) {
-        emit errorOccurred(QString::fromStdString(e.what()));
-        emit finished();
-    }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// ImageLoader implementation
-// ─────────────────────────────────────────────────────────────────────────────
-
-ImageLoader::ImageLoader(const QString& url, int index, QObject* parent)
-    : QObject(parent), m_url(url), m_index(index), m_manager(nullptr) {}
-
-void ImageLoader::load() {
-    QThread* thread = new QThread(this);
-    connect(thread, &QThread::started, this, &ImageLoader::run);
-    connect(this, &ImageLoader::finished, thread, &QThread::quit);
-    connect(thread, &QThread::finished, thread, &QObject::deleteLater);
-    moveToThread(thread);
-    thread->start();
-}
+ImageLoader::ImageLoader(const QString& url, int index, QObject* parent) 
+    : QThread(parent), m_url(url), m_index(index) {}
 
 void ImageLoader::run() {
-    // Placeholder for image loading
-    // A full implementation would fetch the image from m_url via HTTP
-    emit finished();
+    QNetworkAccessManager manager;
+    QNetworkRequest request((QUrl(m_url)));
+    QNetworkReply* reply = manager.get(request);
+
+    QEventLoop loop;
+    QObject::connect(reply, &QNetworkReply::finished, &loop, &QEventLoop::quit);
+    loop.exec();
+
+    if (reply->error() == QNetworkReply::NoError) {
+        QPixmap pixmap;
+        if (pixmap.loadFromData(reply->readAll())) {
+            emit imageLoaded(pixmap, m_index);
+        }
+    }
+    reply->deleteLater();
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// IntroScreen implementation
-// ─────────────────────────────────────────────────────────────────────────────
+CoverFetcher::CoverFetcher(const QString& serverUrl, QObject* parent)
+    : QThread(parent), m_serverUrl(serverUrl) {}
 
-IntroScreen::IntroScreen(QWidget* parent)
-    : QWidget(parent), m_inputWidget(nullptr), m_serverInput(nullptr),
-      m_collageLayout(nullptr) {
-    initUI();
+void CoverFetcher::run() {
+    QString apiUrl = m_serverUrl;
+    if (!apiUrl.startsWith("http")) apiUrl = "http://" + apiUrl;
+    if (apiUrl.endsWith("/")) apiUrl.chop(1);
+    apiUrl += "/api/covers";
+
+    QNetworkAccessManager manager;
+    QNetworkRequest request((QUrl(apiUrl)));
+    QNetworkReply* reply = manager.get(request);
+
+    QEventLoop loop;
+    QObject::connect(reply, &QNetworkReply::finished, &loop, &QEventLoop::quit);
+    loop.exec();
+
+    if (reply->error() != QNetworkReply::NoError) {
+        emit errorOccurred(QString("Server error: %1").arg(reply->errorString()));
+        reply->deleteLater();
+        return;
+    }
+
+    QJsonDocument doc = QJsonDocument::fromJson(reply->readAll());
+    QStringList urls;
+    if (doc.isArray()) {
+        QJsonArray arr = doc.array();
+        for (const QJsonValue& val : arr) {
+            if (val.isString()) {
+                QString item = val.toString();
+                if (item.startsWith("http")) urls.append(item);
+                else urls.append(m_serverUrl + "/" + item);
+            } else if (val.isObject()) {
+                QJsonObject obj = val.toObject();
+                QString cover;
+                if (obj.contains("cover")) cover = obj.value("cover").toString();
+                else if (obj.contains("url")) cover = obj.value("url").toString();
+                else if (obj.contains("image")) cover = obj.value("image").toString();
+                
+                if (!cover.isEmpty()) {
+                    if (cover.startsWith("http")) urls.append(cover);
+                    else {
+                        QString b = m_serverUrl;
+                        if (!b.startsWith("http")) b = "http://" + b;
+                        if (b.endsWith("/")) b.chop(1);
+                        QString c = cover;
+                        if (c.startsWith("/")) c.remove(0, 1);
+                        urls.append(b + "/" + c);
+                    }
+                }
+            }
+        }
+    }
+    reply->deleteLater();
+    emit coversFound(urls);
+}
+
+IntroScreen::IntroScreen(QWidget* parent) : QWidget(parent), m_fetcher(nullptr) {
+    // Start host
+    QString indexPath = QDir::currentPath() + "/index.html";
+    if (!QFile::exists(indexPath)) {
+        indexPath = QCoreApplication::applicationDirPath() + "/index.html";
+    }
+    MeteorHost::start(indexPath);
+
+    initUi();
     loadConfig();
 
-    // Auto-fetch covers if server address is loaded from config
     if (!m_serverInput->text().isEmpty()) {
         fetchCovers();
     } else {
@@ -175,23 +125,33 @@ IntroScreen::IntroScreen(QWidget* parent)
     }
 }
 
-IntroScreen::~IntroScreen() {}
+IntroScreen::~IntroScreen() {
+    if (m_fetcher) {
+        m_fetcher->wait();
+    }
+    for (auto loader : m_loaders) {
+        loader->wait();
+    }
+}
 
-void IntroScreen::initUI() {
+void IntroScreen::closeEvent(QCloseEvent* event) {
+    MeteorHost::stop();
+    event->accept();
+}
+
+void IntroScreen::initUi() {
     setWindowTitle("Meteor");
 
-    // Calculate ideal window size
-    QScreen* screen = QApplication::primaryScreen();
-    auto [winW, winH] = idealWindowSize(screen->geometry().width(),
-                                         screen->geometry().height(), 0.55);
-    resize(winW, winH);
+    QScreen *screen = QApplication::primaryScreen();
+    QRect geom = screen->geometry();
+    int win_w = qMax(400, (int)(geom.width() * 0.55));
+    int win_h = qMax(300, (int)(geom.height() * 0.55));
+    resize(win_w, win_h);
 
-    // Main layout
     QVBoxLayout* mainLayout = new QVBoxLayout(this);
     mainLayout->setContentsMargins(20, 20, 20, 20);
     mainLayout->setSpacing(15);
 
-    // Server address input bar
     m_inputWidget = new QWidget();
     QHBoxLayout* inputLayout = new QHBoxLayout(m_inputWidget);
     inputLayout->setContentsMargins(0, 0, 0, 0);
@@ -199,24 +159,21 @@ void IntroScreen::initUI() {
     m_serverInput = new QLineEdit();
     m_serverInput->setPlaceholderText("Server address (e.g. 127.0.0.1:8304)");
 
-    QPushButton* connectBtn = new QPushButton("Fetch Covers");
-    connect(connectBtn, &QPushButton::clicked, this, &IntroScreen::fetchCovers);
+    m_connectBtn = new QPushButton("Fetch Covers");
+    connect(m_connectBtn, &QPushButton::clicked, this, &IntroScreen::fetchCovers);
 
     inputLayout->addWidget(m_serverInput);
-    inputLayout->addWidget(connectBtn);
+    inputLayout->addWidget(m_connectBtn);
     mainLayout->addWidget(m_inputWidget);
     m_inputWidget->hide();
 
-    // Cover collage (scrollable grid)
     QScrollArea* scrollArea = new QScrollArea();
     scrollArea->setWidgetResizable(true);
-    QWidget* collageContainer = new QWidget();
-    m_collageLayout = new QGridLayout(collageContainer);
-    collageContainer->setLayout(m_collageLayout);
-    scrollArea->setWidget(collageContainer);
+    m_collageContainer = new QWidget();
+    m_collageLayout = new QGridLayout(m_collageContainer);
+    scrollArea->setWidget(m_collageContainer);
     mainLayout->addWidget(scrollArea);
 
-    // Auth buttons
     QHBoxLayout* authLayout = new QHBoxLayout();
     QPushButton* loginBtn = new QPushButton("Login");
     QPushButton* signupBtn = new QPushButton("Sign Up");
@@ -226,21 +183,16 @@ void IntroScreen::initUI() {
     authLayout->addSpacing(20);
     authLayout->addWidget(signupBtn);
     authLayout->addStretch();
+    
     mainLayout->addLayout(authLayout);
 }
 
 void IntroScreen::loadConfig() {
-    // Load server address from config file
-    // Equivalent to Python's load_config()
-    QString projectRoot = QDir::currentPath();
-    QString configPath = projectRoot + "/user_files/config.json";
-
-    QJsonObject config = readConfig(configPath);
-    QString ip = config.contains("ip") ? config.value("ip").toString() : "";
-    QString port = config.contains("port") ? config.value("port").toString() : "";
-
+    QJsonObject config = readConfig();
+    QString ip = config.value("ip").toString();
+    QString port = config.value("port").toString();
     if (!ip.isEmpty()) {
-        QString addr = port.isEmpty() ? ip : QString("%1:%2").arg(ip, port);
+        QString addr = port.isEmpty() ? ip : ip + ":" + port;
         m_serverInput->setText(addr);
     }
 }
@@ -252,41 +204,38 @@ void IntroScreen::fetchCovers() {
         return;
     }
 
-    // Validate address
-    if (!validateAddress(server)) {
-        m_inputWidget->show();
-        QMessageBox::warning(this, "Invalid address",
-                            QString("'%1' does not look like a valid server address.").arg(server));
-        return;
+    QLayoutItem *child;
+    while ((child = m_collageLayout->takeAt(0)) != nullptr) {
+        if (child->widget()) delete child->widget();
+        delete child;
     }
-
-    // Clear old covers
-    while (m_collageLayout->count() > 0) {
-        QLayoutItem* item = m_collageLayout->takeAt(0);
-        if (item && item->widget()) {
-            item->widget()->deleteLater();
-        }
-        delete item;
+    
+    for (auto loader : m_loaders) {
+        loader->wait();
+        loader->deleteLater();
     }
     m_loaders.clear();
 
-    // Start fetching covers in background
-    CoverFetcher* fetcher = new CoverFetcher(server, this);
-    connect(fetcher, &CoverFetcher::coversFound, this, &IntroScreen::handleCoversFound);
-    connect(fetcher, &CoverFetcher::errorOccurred, this, &IntroScreen::handleFetchError);
-    fetcher->fetch();
+    if (m_fetcher) {
+        m_fetcher->wait();
+        m_fetcher->deleteLater();
+    }
+
+    m_fetcher = new CoverFetcher(server, this);
+    connect(m_fetcher, &CoverFetcher::coversFound, this, &IntroScreen::handleCoversFound);
+    connect(m_fetcher, &CoverFetcher::errorOccurred, this, &IntroScreen::handleFetchError);
+    m_fetcher->start();
 }
 
 void IntroScreen::handleFetchError(const QString& errorMsg) {
     m_inputWidget->show();
-    QMessageBox::warning(this, "Server error", errorMsg);
 }
 
 void IntroScreen::handleCoversFound(const QStringList& urls) {
     m_inputWidget->hide();
 
     int row = 0, col = 0;
-    const int colsPerRow = 4;
+    int cols_per_row = 4;
 
     for (int i = 0; i < urls.size(); ++i) {
         QLabel* label = new QLabel("Loading…");
@@ -298,47 +247,18 @@ void IntroScreen::handleCoversFound(const QStringList& urls) {
         m_collageLayout->addWidget(label, row, col);
 
         ImageLoader* loader = new ImageLoader(urls[i], i, this);
-        connect(loader, &ImageLoader::imageLoaded, this, &IntroScreen::updateImage);
-        m_loaders.push_back(std::unique_ptr<ImageLoader>(loader));
-        loader->load();
+        connect(loader, &ImageLoader::imageLoaded, this, [label](const QPixmap& pixmap, int) {
+            if (!pixmap.isNull()) {
+                label->setPixmap(pixmap.scaled(label->size(), Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation));
+            }
+        });
+        m_loaders.append(loader);
+        loader->start();
 
         col++;
-        if (col >= colsPerRow) {
+        if (col >= cols_per_row) {
             col = 0;
             row++;
         }
     }
-}
-
-void IntroScreen::updateImage(const QPixmap& pixmap, int index) {
-    if (!pixmap.isNull()) {
-        // Find the label at the corresponding position and update it
-        int labelIndex = 0;
-        for (int i = 0; i < m_collageLayout->count(); ++i) {
-            QLayoutItem* item = m_collageLayout->itemAt(i);
-            if (item && item->widget()) {
-                if (labelIndex == index) {
-                    QLabel* label = qobject_cast<QLabel*>(item->widget());
-                    if (label) {
-                        label->setPixmap(pixmap.scaledToWidth(
-                            150,
-                            Qt::SmoothTransformation));
-                    }
-                    break;
-                }
-                labelIndex++;
-            }
-        }
-    }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Entry point: when this is compiled as a standalone executable
-// ─────────────────────────────────────────────────────────────────────────────
-
-int main(int argc, char* argv[]) {
-    QApplication app(argc, argv);
-    IntroScreen window;
-    window.show();
-    return app.exec();
 }

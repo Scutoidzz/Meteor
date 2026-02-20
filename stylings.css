@@ -1,0 +1,39 @@
+#primary-btn-dark {
+    background-color: white;
+    color: black;
+    border-radius: 5px;
+    text-align: center;
+}
+
+#secondary-btn-dark {
+    background-color: #131313;
+    color: white;
+    border-radius: 5px;
+    text-align: center;
+}
+
+#suggested-card-dark {
+    background-color: whitesmoke;
+    border-radius: 3px;
+    color: rgb(2, 2, 2);
+    text-align: center;
+    border: 2px;
+}
+
+#card-dark {
+    background-color: #131313;
+    border-radius: 3px;
+    color: whitesmoke;
+    text-align: center;
+    border: 2px;
+
+}
+
+#input-dark {
+    background-color: #131313;
+    color: white;
+    border-radius: 7px;
+    border: 1px;
+}
+
+/* LIGHT THEME STARTS HERE */

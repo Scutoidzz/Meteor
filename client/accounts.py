@@ -1,22 +1,118 @@
+"""
+client/accounts.py — Server communication helpers
+--------------------------------------------------
+Calls the Meteor host server's API endpoints.
+
+When the meteor_cpp C++ extension module is available (built with
+`make module`), config reading and URL assembly are done in C++ for
+speed.  A transparent Python fallback is used otherwise.
+"""
+
 import requests
 import json
 import os
+import sys
 
-def call_server():
-    config_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'user_files', 'config.json')
-    
-    ip = "127.0.0.1"
-    port = "8304"
-    
-    if os.path.exists(config_path):
-        with open(config_path, 'r') as f:
-            config = json.load(f)
-            ip = config.get('ip', ip)
-            port = config.get('port', port)
-            
-    base_url = ip
-    if not base_url.startswith("http"):
-        base_url = f"http://{base_url}"
-        
-    url = f"{base_url}:{port}/api/server_info"
+# ── Project root on sys.path ──────────────────────────────────────────────────
+_HERE         = os.path.dirname(os.path.abspath(__file__))
+_PROJECT_ROOT = os.path.dirname(_HERE)
+if _PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, _PROJECT_ROOT)
+
+# ── Optional C++ acceleration ─────────────────────────────────────────────────
+try:
+    import meteor_cpp as _cpp
+    _CPP_AVAILABLE = True
+except ImportError:
+    _cpp = None
+    _CPP_AVAILABLE = False
+
+
+# ── Bridge helpers ─────────────────────────────────────────────────────────────
+
+def _read_config(path: str) -> dict:
+    """Read a flat JSON config file; uses C++ fast-path when available."""
+    if _CPP_AVAILABLE and os.path.exists(path):
+        try:
+            return _cpp.read_config(path)
+        except RuntimeError:
+            pass
+    if os.path.exists(path):
+        with open(path, "r") as f:
+            return json.load(f)
+    return {}
+
+
+def _build_url(base: str, path: str) -> str:
+    """Assemble a URL with correct scheme and slashes."""
+    if _CPP_AVAILABLE:
+        return _cpp.build_url(base, path)
+    if not base.startswith("http"):
+        base = "http://" + base
+    return base.rstrip("/") + "/" + path.lstrip("/")
+
+
+# ── Public API ────────────────────────────────────────────────────────────────
+
+_CONFIG_PATH = os.path.join(_PROJECT_ROOT, "user_files", "config.json")
+
+DEFAULT_IP   = "127.0.0.1"
+DEFAULT_PORT = "8304"
+
+
+def call_server(endpoint: str = "api/server_info") -> requests.Response:
+    """
+    Make a GET request to `endpoint` on the configured server.
+
+    Config is read via _read_config(), which uses meteor_cpp.read_config()
+    (C++) when available and falls back to plain Python otherwise.
+
+    Example
+    -------
+    >>> resp = call_server()
+    >>> print(resp.json())
+    """
+    config = _read_config(_CONFIG_PATH)
+    ip     = config.get("ip",   DEFAULT_IP)
+    port   = config.get("port", DEFAULT_PORT)
+
+    base_url = f"{ip}:{port}"
+    url = _build_url(base_url, endpoint)
     return requests.get(url)
+
+
+def get_server_info() -> dict:
+    """Return the server's /api/server_info dict, or {} on error."""
+    try:
+        resp = call_server("api/server_info")
+        if resp.status_code == 200:
+            return resp.json()
+    except Exception:
+        pass
+    return {}
+
+
+def get_covers() -> list:
+    """Return the list of cover URLs from /api/covers, or [] on error."""
+    try:
+        config = _read_config(_CONFIG_PATH)
+        ip     = config.get("ip",   DEFAULT_IP)
+        port   = config.get("port", DEFAULT_PORT)
+        base   = f"{ip}:{port}"
+
+        resp = call_server("api/covers")
+        if resp.status_code != 200:
+            return []
+
+        data = resp.json()
+        urls = []
+        for item in data:
+            if isinstance(item, str):
+                urls.append(item if item.startswith("http") else _build_url(base, item))
+            elif isinstance(item, dict):
+                cover = item.get("cover") or item.get("url") or item.get("image")
+                if cover:
+                    urls.append(cover if cover.startswith("http") else _build_url(base, cover))
+        return urls
+    except Exception:
+        return []
