@@ -64,6 +64,7 @@ namespace crow // NOTE: Already documented in "crow/app.h"
 
                 stream.avail_in = str.size();
                 // zlib does not take a const pointer. The data is not altered.
+                // TODO: Consider using a safer alternative to const_cast - potentially create a non-const copy or use a different zlib interface
                 stream.next_in = const_cast<Bytef*>(reinterpret_cast<const Bytef*>(str.c_str()));
 
                 int code = Z_OK;
@@ -861,6 +862,8 @@ namespace crow
     const std::unordered_map<std::string, std::string> mime_types{
       {"gz", "application/gzip"},
       {"shtml", "text/html"},
+      {"sce", "application/scutoid"},
+      // TODO: Review MIME type mapping - "application/scutoid" appears to be custom/test entry
       {"htm", "text/html"},
       {"html", "text/html"},
       {"css", "text/css"},

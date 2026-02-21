@@ -1,14 +1,23 @@
 CXX      = g++
 CXXFLAGS = -std=c++17 -O2 -Wall -fPIC $(shell pkg-config --cflags Qt5Widgets Qt5Network Qt5Gui Qt5Core)
-LIBS     = $(shell pkg-config --libs   Qt5Widgets Qt5Network Qt5Gui Qt5Core)
+LIBS     = $(shell pkg-config --libs   Qt5Widgets Qt5Network Qt5Gui Qt5Core) -ltaglib
 MOC      = moc
 
 TARGET   = meteor
+SCAN_TARGET = scan
 SRC      = main.cpp host/host.cpp host/bghost.cpp client/intro.cpp client/accounts.cpp client/assets/construct.cpp
+SCAN_SRC = host/main/scan.cpp
 HEADERS  = client/intro.h
 OBJS     = $(SRC:.cpp=.o)
+SCAN_OBJS = $(SCAN_SRC:.cpp=.o)
 
-all: $(TARGET)
+all: $(TARGET) $(SCAN_TARGET)
+
+scan: $(SCAN_TARGET)
+
+$(SCAN_TARGET): $(SCAN_OBJS)
+	$(CXX) $(CXXFLAGS) -o $(SCAN_TARGET) $(SCAN_OBJS) -ltaglib
+	@echo "Built $(SCAN_TARGET)"
 
 moc_intro.cpp: client/intro.h
 	$(MOC) $< -o $@
@@ -24,6 +33,6 @@ $(TARGET): $(OBJS) moc_intro.o
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
 clean:
-	rm -f $(TARGET) $(OBJS) moc_intro.cpp moc_intro.o
+	rm -f $(TARGET) $(SCAN_TARGET) $(OBJS) $(SCAN_OBJS) moc_intro.cpp moc_intro.o
 
-.PHONY: all clean
+.PHONY: all clean scan
