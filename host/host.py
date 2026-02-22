@@ -3,17 +3,12 @@ host/host.py — Meteor local HTTP server
 ----------------------------------------
 Serves static files and a small JSON API for the Meteor client.
 
-When the meteor_cpp C++ extension module is built (`make module`), cover
-image enumeration is done in C++ via meteor_cpp.list_images(), which is
-faster than Python's os.listdir() for large libraries.  A transparent
-Python fallback is used when the module is not yet compiled.
-
 API Endpoints
 -------------
-  GET /                    → redirect to target file
-  GET /api/covers          → JSON list of cover image paths
-  GET /api/server_info     → JSON object with server metadata
-  GET /api/setup_complete  → signals setup is done; fires setup_complete_callback
+  GET /                    → redirect to target file WORKS
+  GET /api/covers          → JSON list of cover image paths WORKS
+  GET /api/server_info     → JSON object with server metadata WORKS
+  GET /api/setup_complete  → signals setup is done; fires setup_complete_callback TODO: half works but the server app doesn't recieve the callback
 
 PyBridge usage note
 -------------------
@@ -37,10 +32,13 @@ import http.server
 import socketserver
 import threading
 import time
-import os
+import os 
 import sys
 import json
 import urllib.parse
+import pwd
+import grp
+import webbrowser
 
 # ── Project root ──────────────────────────────────────────────────────────────
 _HERE         = os.path.dirname(os.path.abspath(__file__))
@@ -136,7 +134,8 @@ def host(file_path: str) -> None:
         print(f"Error: File '{file_path}' not found.")
         return
 
-    server_root = _HERE  # serve from the host/ directory
+    server_root = _PROJECT_ROOT  # serve from the project root
+    host_dir = _HERE
 
     try:
         relative_target = os.path.relpath(abs_path, server_root)
@@ -145,12 +144,23 @@ def host(file_path: str) -> None:
         return
 
     target_url_path = relative_target.replace(os.sep, "/")
+    media_path = "/home/scutoid/Music" # Correct library path found in reports
 
     # ── Request handler ───────────────────────────────────────────────────────
     class Handler(http.server.SimpleHTTPRequestHandler):
         def __init__(self, *args, **kwargs):
             kwargs["directory"] = server_root
             super().__init__(*args, **kwargs)
+
+        def translate_path(self, path):
+            # Handle /media/ virtual path
+            if path.startswith("/media/"):
+                rel = path[7:] # strip /media/
+                rel = urllib.parse.unquote(rel)
+                return os.path.join(media_path, rel)
+            
+            # Standard translation for other paths
+            return super().translate_path(path)
 
         # -- CORS headers so the browser client can reach the API -------------
         def end_headers(self):
@@ -184,7 +194,19 @@ def host(file_path: str) -> None:
 
             # ── /api/setup_complete ───────────────────────────────────────────
             if self.path == "/api/setup_complete":
-                self._json_response({"status": "ok"})
+                # Get usernames from 'admin set' (sudo, adm groups + root)
+                admin_set = {"root"}
+                for gname in ["sudo", "adm"]:
+                    try:
+                        group = grp.getgrnam(gname)
+                        admin_set.update(group.gr_mem)
+                        # Plus users with these GIDs as primary
+                        for u in pwd.getpwall():
+                            if u.pw_gid == group.gr_gid:
+                                admin_set.add(u.pw_name)
+                    except KeyError:
+                        continue
+                self._json_response(sorted(list(admin_set)))
                 if _setup_complete_cb is not None:
                     try:
                         _setup_complete_cb()
@@ -192,6 +214,49 @@ def host(file_path: str) -> None:
                         pass
                 return
 
+            # -- /main → skeleton.html -----------------------------------------
+            if self.path == "/main":
+                skeleton = os.path.join(_HERE, "main/skeleton.html")
+                if os.path.exists(skeleton):
+                    with open(skeleton, "rb") as f:
+                        content = f.read()
+                    self.send_response(200)
+                    self.send_header("Content-Type", "text/html")
+                    self.send_header("Content-Length", str(len(content)))
+                    self.end_headers()
+                    self.wfile.write(content)
+                else:
+                    self.send_response(404)
+                    self.end_headers()
+                return
+
+            if self.path == "/api/accounts/list":
+                self._json_response({"status": "ok"})
+                return
+
+            # -- /api/library --------------------------------------------------
+            if self.path == "/api/library":
+                from host.scan import FileScanner
+                scanner = FileScanner()
+                scanner.scan_directory(media_path)
+                
+                # Enhance findings with cover logic
+                results = []
+                for f in scanner.indexed_files:
+                    if f["extension"] in [".directory"]: continue
+                    
+                    # Associate with local thumbnail.png if it exists in the same folder
+                    folder = os.path.dirname(f["path"])
+                    thumb = os.path.join(folder, "thumbnail.png")
+                    f["cover_url"] = f"/media/{os.path.relpath(thumb, media_path)}" if os.path.exists(thumb) else None
+                    f["media_url"] = f"/media/{os.path.relpath(f['path'], media_path)}"
+                    results.append(f)
+                    
+                self._json_response(results)
+                return
+
+            # -- /media/ handler - No longer needed here as translate_path handles it
+                    
             # ── / → redirect to the target file ──────────────────────────────
             if self.path == "/":
                 self.path = "/" + target_url_path
@@ -209,15 +274,14 @@ def host(file_path: str) -> None:
         def log_message(self, fmt, *args):
             pass  # suppress per-request log spam
 
-    # ── Server thread ─────────────────────────────────────────────────────────
     def _run():
         global _server
         socketserver.TCPServer.allow_reuse_address = True
         try:
             with socketserver.TCPServer(("", PORT), Handler) as httpd:
                 _server = httpd
-                print(f"Hosting started.\nApp running at: http://localhost:{PORT}/")
-                print(f"  C++ acceleration (meteor_cpp): {'yes' if _CPP_AVAILABLE else 'no'}")
+                print(f"Head to: http://localhost:{PORT}/ to get started.")
+                print(f"c_acc: {'yes' if _CPP_AVAILABLE else 'no'}")
                 httpd.serve_forever()
         except OSError as e:
             print(f"Error starting server on port {PORT}: {e}")
@@ -225,13 +289,15 @@ def host(file_path: str) -> None:
     _server_thread = threading.Thread(target=_run, daemon=True)
     _server_thread.start()
 
+    # Automatically open the browser
+    try:
+        webbrowser.open(f"http://localhost:{PORT}/")
+    except Exception:
+        pass
+
 
 def stop_host(duration_ms: int = 0) -> None:
-    """
-    Stop the running server.
 
-    @param duration_ms  If > 0, wait this many milliseconds before stopping.
-    """
     global _server
 
     if duration_ms > 0:
@@ -247,14 +313,11 @@ def stop_host(duration_ms: int = 0) -> None:
         print("No active host to stop.")
 
 
-# ── Entry-point (direct run or PyBridge runpy) ────────────────────────────────
 if __name__ == "__main__":
-    # When run directly, host the index.html at the project root so the
-    # browser can open the setup / showcase page.
-    index_path = os.path.join(_PROJECT_ROOT, "index.html")
-    host(index_path)
+    setup_path = os.path.join(_HERE, "mainsetup.html")
+    host(setup_path)
 
-    print("Press Ctrl-C to stop.")
+    print("Press ^C to stop.")
     try:
         while True:
             time.sleep(1)

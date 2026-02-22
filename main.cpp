@@ -36,7 +36,6 @@ int main(int argc, char* argv[]) {
     }
 
 // TODO: Ensure memory/resources are properly released here.
-// TD: Add an OpenAPI/Swagger spec for all REST endpoints.
     QWidget chooser;
     QVBoxLayout* layout = new QVBoxLayout(&chooser);
     QHBoxLayout* buttons = new QHBoxLayout();

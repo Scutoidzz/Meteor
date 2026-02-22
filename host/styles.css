@@ -35,22 +35,10 @@ body {
     border: 1px solid var(--border-color);
     border-radius: var(--radius);
     padding: 40px;
-    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.8);
     position: relative;
-    animation: fadeIn 0.3s ease-out;
 }
 
-@keyframes fadeIn {
-    from {
-        opacity: 0;
-        transform: translateY(5px);
-    }
 
-    to {
-        opacity: 1;
-        transform: translateY(0);
-    }
-}
 
 /* Typography */
 h1 {
@@ -77,7 +65,6 @@ input {
     font-size: 1rem;
     margin-bottom: 1.5rem;
     outline: none;
-    transition: border-color 0.2s;
 }
 
 input:focus {
@@ -102,7 +89,6 @@ button.btn {
     border: 1px solid transparent;
     font-weight: 600;
     cursor: pointer;
-    transition: all 0.2s;
     font-size: 0.95rem;
     text-decoration: none;
     line-height: 1.2;
@@ -116,11 +102,10 @@ button.btn {
 
 .btn-primary:hover {
     background: #e5e5e5;
-    transform: translateY(-1px);
 }
 
 .btn-primary:active {
-    transform: translateY(0);
+    opacity: 0.8;
 }
 
 /* Secondary Action */
@@ -139,6 +124,8 @@ button.btn {
 /* Helper Classes */
 .icon-large {
     font-size: 3rem;
+    width: 3rem;
+    height: 3rem;
     margin-bottom: 1rem;
     display: block;
 }

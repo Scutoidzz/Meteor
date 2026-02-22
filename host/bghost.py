@@ -1,9 +1,4 @@
 """
-host/bghost.py — Meteor background HTTP server (Python rewrite of bghost.cpp)
--------------------------------------------------------------------------------
-Starts a Crow-equivalent HTTP server using Python's built-in http.server
-running in a daemon thread.  Mirrors the BgHost C++ namespace interface:
-
     bghost.start()      → bool   (False if already running)
     bghost.stop()       → None
     bghost.is_running() → bool
@@ -24,8 +19,10 @@ import threading
 import json
 import os
 import socket
+import grp
+import pwd
 
-# ── Project root ──────────────────────────────────────────────────────────────
+# -- Project root --------------------------------------------------------------
 _HERE         = os.path.dirname(os.path.abspath(__file__))
 _PROJECT_ROOT = os.path.dirname(_HERE)
 
@@ -38,7 +35,7 @@ _server_thread = None
 _lock          = threading.Lock()
 
 
-# ── Internal helpers ──────────────────────────────────────────────────────────
+# -- Internal helpers ----------------------------------------------------------
 
 def _list_covers() -> list[str]:
     """Return relative paths like ['covers/foo.png', ...] for all cover images."""
@@ -63,11 +60,10 @@ def _server_info() -> dict:
         "description": "A web server for Meteor (Python bghost)",
         "owner":       owner,
         "url":         "https://github.com/scutoidzz/meteor",
-        "cpp_accel":   False,
     }
 
 
-# ── Request handler ───────────────────────────────────────────────────────────
+# -- Request handler -----------------------------------------------------------
 
 class _Handler(http.server.SimpleHTTPRequestHandler):
     """Handles all Meteor HTTP routes."""
@@ -84,24 +80,56 @@ class _Handler(http.server.SimpleHTTPRequestHandler):
     def do_GET(self):
         path = self.path.split("?", 1)[0]  # strip query string
 
-        # ── /api/covers ───────────────────────────────────────────────────────
+        # -- /api/covers -------------------------------------------------------
         if path == "/api/covers":
             self._json(list(_list_covers()))
             return
 
-        # ── /api/server_info ─────────────────────────────────────────────────
+        # -- /api/server_info -------------------------------------------------
         if path == "/api/server_info":
             self._json(_server_info())
             return
 
-        # ── /api/setup_complete ──────────────────────────────────────────────
+        # -- /api/setup_complete ----------------------------------------------
         if path == "/api/setup_complete":
-            self._json({"status": "ok"})
+            # Get usernames from 'admin set' (sudo, adm groups + root)
+            admin_set = {"root"}
+            for gname in ["sudo", "adm"]:
+                try:
+                    group = grp.getgrnam(gname)
+                    admin_set.update(group.gr_mem)
+                    for u in pwd.getpwall():
+                        if u.pw_gid == group.gr_gid:
+                            admin_set.add(u.pw_name)
+                except KeyError:
+                    continue
+            self._json(sorted(list(admin_set)))
             return
 
-        # ── / → index.html ────────────────────────────────────────────────────
+        # -- /main → skeleton.html ---------------------------------------------
+        if path == "/main":
+            skeleton = os.path.join(_HERE, "main/skeleton.html")
+            if os.path.exists(skeleton):
+                with open(skeleton, "rb") as f:
+                    content = f.read()
+                self.send_response(200)
+                self.send_header("Content-Type", "text/html")
+                self.send_header("Content-Length", str(len(content)))
+                self.end_headers()
+                self.wfile.write(content)
+            else:
+                self.send_response(404)
+                self.end_headers()
+            return
+
+        # -- /api/easter -------------------------------------------------------
+        if path == "/api/easter":
+            self._json({"message": "Hello World"})
+            return
+
+        # -- / → mainsetup.html ------------------------------------------------
         if path == "/":
-            index = os.path.join(_PROJECT_ROOT, "index.html")
+            index = os.path.join(_HERE, "mainsetup.html")
             if os.path.exists(index):
                 with open(index, "rb") as f:
                     content = f.read()
@@ -115,7 +143,7 @@ class _Handler(http.server.SimpleHTTPRequestHandler):
                 self.end_headers()
             return
 
-        # ── static files ──────────────────────────────────────────────────────
+        # -- static files ------------------------------------------------------
         super().do_GET()
 
     def _json(self, data) -> None:
@@ -130,7 +158,7 @@ class _Handler(http.server.SimpleHTTPRequestHandler):
         pass  # suppress per-request log noise
 
 
-# ── Public API ────────────────────────────────────────────────────────────────
+# -- Public API ----------------------------------------------------------------
 
 def start() -> bool:
     """
@@ -150,7 +178,6 @@ def start() -> bool:
                 with socketserver.TCPServer(("", PORT), _Handler) as httpd:
                     _server = httpd
                     print(f"Hosting started.\nApp running at: http://localhost:{PORT}/")
-                    print("  C++ acceleration: no (pure Python bghost)")
                     httpd.serve_forever()
             except OSError as exc:
                 print(f"Error starting server on port {PORT}: {exc}")
@@ -182,7 +209,7 @@ def is_running() -> bool:
     return _server is not None
 
 
-# ── Direct run ────────────────────────────────────────────────────────────────
+# -- Direct run ----------------------------------------------------------------
 if __name__ == "__main__":
     import time
     start()

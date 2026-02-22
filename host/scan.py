@@ -24,6 +24,7 @@ import sys
 _AUDIO_EXTS = {".mp3", ".flac", ".ogg", ".wav", ".m4a", ".aac", ".wma"}
 _VIDEO_EXTS = {".mp4", ".avi", ".mkv", ".mov", ".wmv", ".flv", ".webm",
                ".m4v", ".mpg", ".mpeg", ".3gp", ".ogv", ".ts", ".m2ts"}
+_DRM_EXTS = {".mpd", ".bin", ".dash"}
 
 # ── Optional mutagen for audio tag reading ────────────────────────────────────
 try:
