@@ -141,7 +141,11 @@ IntroScreen::IntroScreen(QWidget* parent) : QWidget(parent), m_fetcher(nullptr) 
     if (!QFile::exists(indexPath)) {
         indexPath = QCoreApplication::applicationDirPath() + "/index.html";
     }
-    MeteorHost::start(indexPath);
+    if (!MeteorHost::start(indexPath)) {
+        QMessageBox::critical(nullptr, "Meteor",
+            "Failed to start local server — port 8304 may already be in use.\n"
+            "Close any other Meteor instances and try again.");
+    }
 
     initUi();
     loadConfig();

@@ -26,10 +26,10 @@ void setSetupCompleteCallback(std::function<void()> cb) {
 }
 
 // TODO: Verify if a forward declaration can be used instead to speed up compile times.
-void start(const QString& file_path) {
+bool start(const QString& file_path) {
     if (g_server) {
         qDebug() << "Server is already running.";
-        return;
+        return false;
     }
 
 // TODO: Ensure memory/resources are properly released here.
@@ -191,10 +191,12 @@ void start(const QString& file_path) {
         qDebug().nospace().noquote() << "Error starting server on port " << port;
         delete g_server;
         g_server = nullptr;
+        return false;
     } else {
 // TODO: Ensure this exception is properly logged with sufficient context for debugging.
         qDebug().nospace().noquote() << "Hosting started.\nApp running at: http://localhost:" << port << "/";
         qDebug().nospace().noquote() << "  C++ acceleration: yes";
+        return true;
     }
 }
 

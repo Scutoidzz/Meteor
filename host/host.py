@@ -8,6 +8,13 @@ image enumeration is done in C++ via meteor_cpp.list_images(), which is
 faster than Python's os.listdir() for large libraries.  A transparent
 Python fallback is used when the module is not yet compiled.
 
+API Endpoints
+-------------
+  GET /                    → redirect to target file
+  GET /api/covers          → JSON list of cover image paths
+  GET /api/server_info     → JSON object with server metadata
+  GET /api/setup_complete  → signals setup is done; fires setup_complete_callback
+
 PyBridge usage note
 -------------------
 This file is launched two ways:
@@ -90,8 +97,19 @@ def _list_cover_files(covers_dir: str) -> list[str]:
 #
 PORT: int = int(globals().get("_meteor_port", 8304))
 
-_server        = None
-_server_thread = None
+_server               = None
+_server_thread        = None
+_setup_complete_cb    = None  # optional callable fired when /api/setup_complete is hit
+
+
+def set_setup_complete_callback(cb) -> None:
+    """
+    Register a callable that will be invoked (once) when the client
+    hits GET /api/setup_complete.  Mirrors MeteorHost::setSetupCompleteCallback
+    from the C++ host.cpp.
+    """
+    global _setup_complete_cb
+    _setup_complete_cb = cb
 
 
 # ── Public API ────────────────────────────────────────────────────────────────
@@ -162,6 +180,16 @@ def host(file_path: str) -> None:
                     "url":         "https://github.com/scutoidzz/meteor",
                     "cpp_accel":   _CPP_AVAILABLE,   # useful for diagnostics
                 })
+                return
+
+            # ── /api/setup_complete ───────────────────────────────────────────
+            if self.path == "/api/setup_complete":
+                self._json_response({"status": "ok"})
+                if _setup_complete_cb is not None:
+                    try:
+                        _setup_complete_cb()
+                    except Exception:
+                        pass
                 return
 
             # ── / → redirect to the target file ──────────────────────────────

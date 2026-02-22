@@ -163,11 +163,17 @@ class IntroScreen(QtWidgets.QWidget):
     def __init__(self):
         super().__init__()
 
-        # Start the local host server if available
+        # Start the local host server if available.
+        # If the port is already in use (e.g. bghost started first),
+        # we silently continue — the client will connect to whatever
+        # server is already running on that port.
         if hoster:
             target_path = os.path.join(_PROJECT_ROOT, "host", "styles.css")
             if os.path.exists(target_path):
-                hoster.host(target_path)
+                try:
+                    hoster.host(target_path)
+                except OSError:
+                    pass  # port in use — server already running
 
         self.loaders: list = []
         self.init_ui()

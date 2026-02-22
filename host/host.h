@@ -8,7 +8,8 @@ namespace MeteorHost {
 
 // Start the HTTP server in a background thread.
 // file_path is the target file to redirect to when "/" is requested.
-void start(const QString& file_path);
+// Returns true on success, false if the port is already in use.
+bool start(const QString& file_path);
 
 // Stop the HTTP server
 void stop();

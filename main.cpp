@@ -1,8 +1,10 @@
+#define METEOR_MAIN_APP
 #include <QApplication>
 #include <QMessageBox>
 #include "client/intro.h"
 #include "host/host.h"
 #include "host/bghost.h"
+#include "host/main/scan.h"
 #include <QWidget>
 #include <QPushButton>
 #include <QLabel>
@@ -12,8 +14,11 @@
 #include <QDir>
 #include <QCoreApplication>
 #include <QFile>
+#include <QInputDialog>
+#include <QTextEdit>
+#include <QtConcurrent/QtConcurrent>
+#include <QPointer>
 
-// TODO: Consider error handling here.
 int main(int argc, char* argv[]) {
     QApplication app(argc, argv);
     if (argc > 1 && QString(argv[1]) == "--server") {
@@ -23,7 +28,10 @@ int main(int argc, char* argv[]) {
             indexPath = QCoreApplication::applicationDirPath() + "/index.html";
         }
 // TODO: Consider applying the Rule of 5 to properly manage the lifecycle of this class.
-        MeteorHost::start(indexPath);
+        if (!MeteorHost::start(indexPath)) {
+            QMessageBox::critical(nullptr, "Meteor", "Failed to start server — port 8304 may already be in use.");
+            return 1;
+        }
         return app.exec();
     }
 
@@ -41,9 +49,11 @@ int main(int argc, char* argv[]) {
     QPushButton* btn1 = new QPushButton("Client");
 // TODO: Review this logic for thread-safety.
     QPushButton* btn2 = new QPushButton("Server");
+    QPushButton* btn3 = new QPushButton("File Scanner(Use this before server)");
 
     buttons->addWidget(btn1);
     buttons->addWidget(btn2);
+    buttons->addWidget(btn3);
 
     layout->addWidget(label);
     layout->addLayout(buttons);  
@@ -96,13 +106,92 @@ int main(int argc, char* argv[]) {
         serverWin->show();
     });
 
-    chooser.show();
-    
+    // Scanner button functionality
+    QObject::connect(btn3, &QPushButton::clicked, [&]() {
+        chooser.hide();
+        
+        // Get directory path from user
+        QString dirPath = QInputDialog::getText(nullptr, "File Scanner", 
+            "Enter directory path to scan (default: current directory):");
+        
+        if (dirPath.isEmpty()) {
+            dirPath = ".";
+        }
+        
+        // Create scanner window
+        QWidget* scannerWin = new QWidget();
+        scannerWin->setWindowTitle("File Scanner Results");
+        QVBoxLayout* scannerLayout = new QVBoxLayout(scannerWin);
+        
+        QTextEdit* resultsDisplay = new QTextEdit();
+        QPointer<QTextEdit> safeDisplay(resultsDisplay);
+        resultsDisplay->setReadOnly(true);
+        resultsDisplay->setPlainText("Scanning directory: " + dirPath + "\n\n");
+        
+        QPushButton* closeBtn = new QPushButton("Close");
+        scannerLayout->addWidget(resultsDisplay);
+        scannerLayout->addWidget(closeBtn);
+        
+        scannerWin->setAttribute(Qt::WA_DeleteOnClose);
+        scannerWin->show();
+        
+        // Run scanner in background thread to avoid blocking UI
+        QtConcurrent::run([dirPath, safeDisplay]() {
+            try {
+                FileScanner scanner;
+                std::string stdDirPath = dirPath.toStdString();
+                scanner.scanDirectory(stdDirPath);
+                
+                // Write to file
+                scanner.writeMetadataToFile("file_metadata_report.txt");
+                
+                // Update UI with results
+                QString results = QString("Scanning completed for: %1\n\n").arg(dirPath);
+                results += QString("Total files indexed: %1\n\n").arg(scanner.getIndexedFiles().size());
+                
+                for (const auto& file : scanner.getIndexedFiles()) {
+                    results += QString("File: %1\n").arg(QString::fromStdString(file.path));
+                    results += QString("  Size: %1 bytes\n").arg(file.fileSize);
+                    results += QString("  Extension: %1\n").arg(QString::fromStdString(file.extension));
+                    results += QString("  Title: %1\n").arg(QString::fromStdString(file.title));
+                    
+                    if (!file.artist.empty()) {
+                        results += QString("  Artist: %1\n").arg(QString::fromStdString(file.artist));
+                    }
+                    if (!file.album.empty()) {
+                        results += QString("  Album: %1\n").arg(QString::fromStdString(file.album));
+                    }
+                    if (file.year > 0) {
+                        results += QString("  Year: %1\n").arg(file.year);
+                    }
+                    results += "\n";
+                }
+                
+                results += "\nMetadata written to: file_metadata_report.txt";
+                
+                if (safeDisplay)
+                    QMetaObject::invokeMethod(safeDisplay, "setPlainText", Qt::QueuedConnection, Q_ARG(QString, results));
+                
+            } catch (const std::exception& e) {
+                QString error = QString("Error during scanning: %1").arg(e.what());
+                if (safeDisplay)
+                    QMetaObject::invokeMethod(safeDisplay, "setPlainText", Qt::QueuedConnection, Q_ARG(QString, error));
+            }
+        });
+        
+        QObject::connect(closeBtn, &QPushButton::clicked, [scannerWin]() {
+            scannerWin->close();
+        });
+    });
+
     // To ensure closing the messagebox doesn't quit the server if chooser is hidden
 // TODO: Audit this dependency to ensure it meets our production security requirements.
     app.setQuitOnLastWindowClosed(true);
 
+    chooser.show();
+
     int ret = app.exec();
-    if (intro) delete intro;
+    if (intro && intro->isVisible()) intro->close();
+    delete intro;
     return ret;
 }
