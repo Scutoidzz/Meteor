@@ -4,10 +4,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Meteor | Player</title>
+    <title>Meteor | Music</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/stylings.css">
-
 </head>
 
 <body>
@@ -21,7 +20,7 @@
             </svg>
         </div>
 
-        <button class="navbutton active" id="home" title="Home" onclick="window.location.href='/main'">
+        <button class="navbutton" id="home" title="Home" onclick="window.location.href='/main'">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
                 stroke-linejoin="round">
                 <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
@@ -35,7 +34,7 @@
                 <rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect>
             </svg>
         </button>
-        <button class="navbutton" id="music" title="Music" onclick="window.location.href='/music'">
+        <button class="navbutton active" id="music" title="Music" onclick="window.location.href='/music'">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
                 stroke-linejoin="round">
                 <path d="M9 18V5l12-2v13"></path>
@@ -69,22 +68,11 @@
                     <circle cx="11" cy="11" r="8"></circle>
                     <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
                 </svg>
-                <input type="text" class="search-input" id="input-dark" placeholder="Search your library...">
-            </div>
-            <div class="user-profile">
-                <!-- Profile placeholder -->
+                <input type="text" class="search-input" id="input-dark" placeholder="Search music...">
             </div>
         </header>
 
         <main id="content">
-            <section id="card-dark">
-                <div class="featured-content">
-                    <div class="featured-label">For You</div>
-                    <h2 class="featured-title">Continue Watching</h2>
-                    <button class="featured-btn" id="primary-btn-dark">Play Now</button>
-                </div>
-            </section>
-
             <div id="library-container">
                 <!-- Albums will be loaded here -->
             </div>
@@ -92,7 +80,7 @@
     </div>
 
     <script>
-        async function loadLibrary() {
+        async function loadMusic() {
             const container = document.getElementById('library-container');
             try {
                 const response = await fetch('/api/library');
@@ -101,7 +89,7 @@
                 container.innerHTML = '';
 
                 if (items.length === 0) {
-                    container.innerHTML = '<p style="color: var(--text-muted);">No media files found in your library.</p>';
+                    container.innerHTML = '<p style="color: var(--text-muted);">No music files found.</p>';
                     return;
                 }
 
@@ -140,12 +128,12 @@
                     container.appendChild(section);
                 }
             } catch (err) {
-                console.error('Failed to load library:', err);
+                console.error('Failed to load music:', err);
                 container.innerHTML = '<p style="color: #ff4444;">Could not connect to the library server.</p>';
             }
         }
 
-        window.onload = loadLibrary;
+        window.onload = loadMusic;
     </script>
 </body>
 

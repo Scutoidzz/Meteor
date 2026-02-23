@@ -214,11 +214,16 @@ def host(file_path: str) -> None:
                         pass
                 return
 
-            # -- /main → skeleton.html -----------------------------------------
-            if self.path == "/main":
-                skeleton = os.path.join(_HERE, "main/skeleton.html")
-                if os.path.exists(skeleton):
-                    with open(skeleton, "rb") as f:
+            # -- Page routes ---------------------------------------------------
+            if self.path in ["/main", "/videos", "/music"]:
+                page_map = {
+                    "/main": "main/skeleton.html",
+                    "/videos": "main/videos.html",
+                    "/music": "main/music.html"
+                }
+                page_path = os.path.join(_HERE, page_map[self.path])
+                if os.path.exists(page_path):
+                    with open(page_path, "rb") as f:
                         content = f.read()
                     self.send_response(200)
                     self.send_header("Content-Type", "text/html")
