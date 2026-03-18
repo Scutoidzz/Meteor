@@ -1,5 +1,5 @@
 # Meteor
-### Self hosted meteor server
++ Self hosted media server.
 
 ### Architecture
 + Server backend uses flask
@@ -15,3 +15,13 @@
 # How to use
 + When you download it, the app will start setup. You will need a directory with your music and audio
 + After setup, go to 127.0.0.1:8304
+
+# Contributing
++ open a pr or something
++ open an issue or something idk
+
+# credits
++ me
++ me
++ me
++ openai
