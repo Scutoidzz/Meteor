@@ -1,0 +1,9 @@
+{
+    "presetup": false,
+    "server": true,
+    "server_name": "scutoid",
+    "file_paths": [
+        "/home/scutoid/Music",
+        "/home/scutoid/Meteor/server/host/assets"
+    ]
+}

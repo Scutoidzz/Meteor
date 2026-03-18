@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <title>Meteor | Sign In</title>
+        <link rel="stylesheet" href="../style.css">
+        <style>
+            .user-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 12px;
+            margin-top: 16px;
+            }
+            .user-card {
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-md);
+            padding: 14px;
+            text-align: left;
+            background: var(--bg-secondary);
+            cursor: pointer;
+            transition: border-color 0.2s ease, transform 0.15s ease;
+            }
+            .user-card:hover {
+            border-color: var(--accent);
+            transform: translateY(-2px);
+            }
+            .user-card strong {
+            display: block;
+            margin-bottom: 4px;
+            }
+            #loginPanel {
+            margin-top: 18px;
+            display: none;
+            text-align: left;
+            }
+        </style>
+    </head>
+    <body class="setup-page no-nav">
+        <div class="setup-shell">
+            <div class="card setup-card" style="text-align: left; max-width: 720px;">
+                <div class="pill">Sign In</div>
+                <h1>Welcome back</h1>
+                <p class="muted">Choose your account to continue.</p>
+
+                <div id="userList" class="user-grid"></div>
+
+                <div id="loginPanel">
+                    <h3 id="selectedUserName">Sign in</h3>
+                    <div class="form-stack">
+                        <div>
+                            <label for="password"><strong>Password</strong></label>
+                            <input type="password" id="password" placeholder="Enter your password" autocomplete="current-password">
+                        </div>
+                    </div>
+                    <div class="button-row" style="justify-content: space-between; margin-top: 12px;">
+                        <button class="btn-secondary" type="button" onclick="clearSelection()">Choose another</button>
+                        <button class="btn-primary" type="button" onclick="loginUser()">Sign In</button>
+                    </div>
+                    <p class="helper" id="loginError" style="color: #ff8080; min-height: 1.2em; margin-top: 6px;"></p>
+                </div>
+
+                <div class="button-row" style="margin-top: 18px;">
+                    <button class="btn-secondary" data-next-page="new_user.html">+ New User</button>
+                </div>
+            </div>
+        </div>
+        <script>
+            const list = document.getElementById('userList');
+            const loginPanel = document.getElementById('loginPanel');
+            const selectedUserName = document.getElementById('selectedUserName');
+            const loginError = document.getElementById('loginError');
+            let selectedUser = null;
+
+            function renderUsers(users) {
+                if (!users.length) {
+                    list.innerHTML = '<p class="muted">No users found. Create one to get started.</p>';
+                    return;
+                }
+                list.innerHTML = '';
+                users.forEach(user => {
+                    const card = document.createElement('button');
+                    card.type = 'button';
+                    card.className = 'user-card';
+                    card.innerHTML = `
+                        <strong>${user.display_name || user.username}</strong>
+                        <span class="muted">@${user.username}</span>
+                    `;
+                    card.addEventListener('click', () => selectUser(user));
+                    list.appendChild(card);
+                });
+            }
+
+            function selectUser(user) {
+                selectedUser = user;
+                selectedUserName.textContent = `Sign in as ${user.display_name || user.username}`;
+                loginPanel.style.display = 'block';
+                loginError.textContent = '';
+                document.getElementById('password').value = '';
+                document.getElementById('password').focus();
+            }
+
+            function clearSelection() {
+                selectedUser = null;
+                loginPanel.style.display = 'none';
+                loginError.textContent = '';
+            }
+
+            function loginUser() {
+                if (!selectedUser) {
+                    return;
+                }
+                const password = document.getElementById('password').value;
+                if (!password) {
+                    loginError.textContent = 'Please enter your password.';
+                    return;
+                }
+                loginError.textContent = '';
+                fetch('/api/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username: selectedUser.username, password: password })
+                })
+                .then(res => res.json())
+                .then(data => {
+                    if (data.ok) {
+                        window.location.href = data.redirect;
+                    } else {
+                        loginError.textContent = data.error || 'Login failed';
+                    }
+                })
+                .catch(() => {
+                    loginError.textContent = 'Login failed';
+                });
+            }
+
+            document.getElementById('password').addEventListener('keydown', (event) => {
+                if (event.key === 'Enter') {
+                    loginUser();
+                }
+            });
+
+            fetch('/api/users')
+                .then(res => res.json())
+                .then(users => renderUsers(users))
+                .catch(() => {
+                    list.innerHTML = '<p class="muted">Failed to load users.</p>';
+                });
+        </script>
+        <script src="setup-preview.js"></script>
+    </body>
+</html>

@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <title>Meteor</title>
+        <link rel="stylesheet" href="../style.css">
+        <style>
+            body { padding: 0; padding-top: var(--nav-height); max-width: none; }
+            .main-content { padding: 0 4% 24px; padding-top: 24px; padding-bottom: 60px; }
+            .hero {
+            position: relative;
+            height: 54vw;
+            max-height: 520px;
+            min-height: 280px;
+            overflow: hidden;
+            border-radius: var(--radius-lg);
+            margin-bottom: 24px;
+            background: linear-gradient(rgba(0,0,0,0.4), var(--bg-primary)), var(--hero-bg) center/cover;
+            }
+            .hero-inner {
+            position: absolute;
+            bottom: 15%;
+            left: 6%;
+            right: 6%;
+            color: white;
+            }
+            .hero-inner h2 { font-size: clamp(1.8rem, 4vw, 3rem); margin-bottom: 8px; }
+            .hero-inner p { font-size: 1.05rem; margin-bottom: 16px; opacity: 0.95; }
+            .section-title { font-size: 1.4rem; margin: 24px 0 12px; font-weight: 600; }
+            .media-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+            gap: 16px;
+            }
+            .media-card {
+            width: 220px;
+            cursor: pointer;
+            }
+            .media-card-poster {
+            width: 100%;
+            height: 120px;
+            background-color: #333;
+            border-radius: 4px;
+            margin-bottom: 8px;
+            }
+            .media-card-info {
+            font-size: 0.9rem;
+            }
+            .media-card-info strong {
+            display: block;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            }
+            .media-card-info small {
+            color: var(--text-secondary);
+            }
+            .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 14px;
+            }
+            .stat-card {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-md);
+            padding: 14px 16px;
+            display: grid;
+            gap: 6px;
+            }
+            .stat-card strong { font-size: 1.3rem; }
+        </style>
+    </head>
+    <body>
+        <nav class="navbar" id="navbar">
+            <div class="navbar-left">
+                <a href="/main/home.html" class="navbar-logo" aria-label="Home">
+                    <img src="/svg.svg" alt="Meteor">
+                </a>
+                <ul class="nav-links">
+                    <li><a href="/main/home.html" class="active">Home</a></li>
+                    <li id="navUsersWrap" style="display: none;"><a href="/main/users.html">Users</a></li>
+                    <li>
+                        <div class="search-expanded" id="searchBox">
+                            <input type="text" id="searchInput" placeholder="Search titles...">
+                        </div>
+                        <button type="button" class="navbar-search-btn" id="searchBtn" aria-label="Search">
+                            <svg viewBox="0 0 24 24" fill="currentColor"><path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
+                        </button>
+                    </li>
+                    <li id="navSettingsWrap" style="display: none;"><a href="/main/settings.html">Settings</a></li>
+                </ul>
+            </div>
+            <div class="navbar-right">
+                <span class="user-badge" id="userInfo">Loading...</span>
+                <button type="button" class="btn-secondary" id="logout">Logout</button>
+            </div>
+        </nav>
+
+        <main class="main-content">
+            <section class="hero">
+                <div class="hero-inner">
+                    <h2 id="heroTitle">Welcome to Meteor</h2>
+                    <p id="heroSubtitle">Your media library, ready to play.</p>
+                    <div class="button-row" id="heroActions">
+                        <button class="btn-primary" id="heroBrowse">Browse Library</button>
+                        <button class="btn-secondary" id="heroUsers" style="display: none;">Manage Users</button>
+                        <button class="btn-secondary" id="heroSettings" style="display: none;">Settings</button>
+                    </div>
+                </div>
+            </section>
+
+            <section class="stats-grid" id="statsGrid"></section>
+
+            <div id="mediaSections"></div>
+        </main>
+
+        <script>
+        let allMedia = [];
+        let serverInfo = null;
+
+        fetch('/api/server/info').then(r => r.json()).then(data => {
+            serverInfo = data;
+            document.title = (data.server_name || 'Meteor') + ' - Home';
+            document.getElementById('heroTitle').textContent = data.server_name ? `Welcome to ${data.server_name}` : 'Welcome to Meteor';
+            document.getElementById('heroSubtitle').textContent = `Serving ${data.file_paths.length} folder${data.file_paths.length === 1 ? '' : 's'} with ${data.user_count} user${data.user_count === 1 ? '' : 's'}.`;
+            renderStats();
+        });
+
+        fetch('/api/user/current').then(r => r.json()).then(user => {
+            document.getElementById('userInfo').textContent = user.display_name + ' (' + user.role + ')';
+            if (user.role === 'admin') {
+                document.getElementById('navSettingsWrap').style.display = 'block';
+                document.getElementById('navUsersWrap').style.display = 'block';
+                document.getElementById('heroUsers').style.display = 'inline-flex';
+                document.getElementById('heroSettings').style.display = 'inline-flex';
+            }
+        });
+
+        document.getElementById('heroBrowse').addEventListener('click', () => {
+            document.getElementById('mediaSections').scrollIntoView({ behavior: 'smooth' });
+        });
+        document.getElementById('heroUsers').addEventListener('click', () => {
+            window.location.href = '/main/users.html';
+        });
+        document.getElementById('heroSettings').addEventListener('click', () => {
+            window.location.href = '/main/settings.html';
+        });
+
+        document.getElementById('searchBtn').addEventListener('click', function() {
+            var box = document.getElementById('searchBox');
+            box.classList.toggle('visible');
+            if (box.classList.contains('visible')) document.getElementById('searchInput').focus();
+        });
+
+        document.getElementById('searchInput').addEventListener('input', function() {
+            var q = this.value.trim().toLowerCase();
+            filterAndRenderMedia(q);
+        });
+
+        document.getElementById('searchInput').addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') {
+                document.getElementById('searchBox').classList.remove('visible');
+                this.value = '';
+                filterAndRenderMedia('');
+            }
+        });
+
+        function renderStats() {
+            const grid = document.getElementById('statsGrid');
+            if (!grid) return;
+            const totals = {
+                total: allMedia.length,
+                audio: allMedia.filter(m => m.type === 'audio').length,
+                video: allMedia.filter(m => m.type === 'video').length,
+                image: allMedia.filter(m => m.type === 'image').length
+            };
+            const userCount = serverInfo ? serverInfo.user_count : 0;
+            const folderCount = serverInfo ? serverInfo.file_paths.length : 0;
+            grid.innerHTML = `
+                <div class="stat-card">
+                    <span class="muted">Library Items</span>
+                    <strong>${totals.total}</strong>
+                    <span class="muted">${totals.audio} audio / ${totals.video} video / ${totals.image} images</span>
+                </div>
+                <div class="stat-card">
+                    <span class="muted">Users</span>
+                    <strong>${userCount}</strong>
+                    <span class="muted">Active profiles</span>
+                </div>
+                <div class="stat-card">
+                    <span class="muted">Folders</span>
+                    <strong>${folderCount}</strong>
+                    <span class="muted">Monitored locations</span>
+                </div>
+            `;
+        }
+
+        function filterAndRenderMedia(query) {
+            if (!query) {
+                renderMediaSections(allMedia);
+                return;
+            }
+            var filtered = allMedia.filter(function(m) { return m.name.toLowerCase().indexOf(query) !== -1; });
+            var container = document.getElementById('mediaSections');
+            container.innerHTML = '';
+            if (filtered.length === 0) {
+                container.innerHTML = '<p class="section-title">No results for "' + query + '"</p>';
+                return;
+            }
+            var title = document.createElement('h2');
+            title.className = 'section-title';
+            title.textContent = 'Search results';
+            var row = document.createElement('div');
+            row.className = 'media-grid';
+            container.appendChild(title);
+            container.appendChild(row);
+            filtered.forEach(function(m) { appendMediaCard(row, m); });
+        }
+
+        function loadMedia() {
+            fetch('/api/media/list').then(function(r) { return r.json(); }).then(function(data) {
+                allMedia = data.media || [];
+                renderMediaSections(allMedia);
+                renderStats();
+            }).catch(function() {
+                document.getElementById('mediaSections').innerHTML = '<p class="section-title">Add folders in setup to see your media here.</p>';
+            });
+        }
+
+        function renderMediaSections(media) {
+            const container = document.getElementById('mediaSections');
+            container.innerHTML = '';
+
+            if (media.length === 0) {
+                container.innerHTML = '<p class="section-title">No media yet. Add folders during setup to scan music and video.</p>';
+                return;
+            }
+
+            const byType = {
+                video: media.filter(m => m.type === 'video'),
+                audio: media.filter(m => m.type === 'audio'),
+                image: media.filter(m => m.type === 'image')
+            };
+
+            Object.keys(byType).forEach(type => {
+                const items = byType[type];
+                if (items.length === 0) return;
+                
+                const title = document.createElement('h2');
+                title.className = 'section-title';
+                title.textContent = type.charAt(0).toUpperCase() + type.slice(1) + 's';
+                
+                const row = document.createElement('div');
+                row.className = 'media-grid';
+                
+                container.appendChild(title);
+                container.appendChild(row);
+                
+                items.forEach(item => appendMediaCard(row, item));
+            });
+        }
+
+        function getMediaCardBackground(item) {
+            if (item.type === 'image') {
+                return `url('/api/media/file?path=${encodeURIComponent(item.path)}')`;
+            }
+            var colors = ['#ff4d5a', '#1a1a2e', '#16213e', '#0f3460'];
+            var i = (item.name.length + (item.path || '').length) % colors.length;
+            return `linear-gradient(135deg, ${colors[i]}, #333)`;
+        }
+
+        function getMimeType(item) {
+            const ext = (item.name.split('.').pop() || '').toLowerCase();
+            if (item.type === 'video') {
+                if (ext === 'mp4') return 'video/mp4';
+                if (ext === 'mkv') return 'video/x-matroska';
+                if (ext === 'webm') return 'video/webm';
+                if (ext === 'mov') return 'video/quicktime';
+                if (ext === 'wmv') return 'video/x-ms-wmv';
+                if (ext === 'm4v') return 'video/x-m4v';
+                if (ext === 'avi') return 'video/x-msvideo';
+            }
+            if (item.type === 'image') {
+                if (ext === 'svg') return 'image/svg+xml';
+                if (ext === 'png') return 'image/png';
+                if (ext === 'jpg' || ext === 'jpeg') return 'image/jpeg';
+                if (ext === 'webp') return 'image/webp';
+                if (ext === 'gif') return 'image/gif';
+            }
+            return '';
+        }
+
+        function appendMediaCard(row, item) {
+            var card = document.createElement('div');
+            card.className = 'media-card';
+            var backgroundStyle = getMediaCardBackground(item);
+            card.innerHTML = `<div class="media-card-poster" style="background-image: ${backgroundStyle}; background-size: cover; background-position: center;"></div><div class="media-card-info"><strong>${escapeHtml(item.name)}</strong><small>${item.type === 'video' ? 'Video' : item.type === 'audio' ? 'Audio' : 'Image'}</small></div>`;
+            if (item.type === 'video' || item.type === 'image') {
+                card.addEventListener('click', function() { openPlayer(item); });
+            } else if (item.type === 'audio') {
+                card.addEventListener('click', function() { 
+                    window.location.href = `/main/musicplaying.html?path=${encodeURIComponent(item.path)}`;
+                });
+            }
+            row.appendChild(card);
+        }
+
+        function openPlayer(item) {
+            const mimeType = getMimeType(item);
+            window.location.href = `/main/player.html?path=${encodeURIComponent(item.path)}&type=${encodeURIComponent(mimeType)}`;
+        }
+
+        function escapeHtml(s) {
+            var div = document.createElement('div');
+            div.textContent = s;
+            return div.innerHTML;
+        }
+
+        document.getElementById('logout').addEventListener('click', function() {
+            fetch('/api/logout', { method: 'POST' }).then(function() { window.location.href = '/setup/select_user.html'; });
+        });
+
+        window.addEventListener('scroll', function() {
+            document.getElementById('navbar').classList.toggle('scrolled', window.scrollY > 50);
+        });
+
+        loadMedia();
+        </script>
+    </body>
+</html>

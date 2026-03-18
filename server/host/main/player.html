@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Meteor | Player</title>
+    <link rel="stylesheet" href="../style.css">
+    <style>
+        body {
+        background-color: #000;
+        color: #fff;
+        margin: 0;
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
+        }
+        .player-top {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 16px 24px;
+        background: rgba(0, 0, 0, 0.7);
+        }
+        #media-container {
+        flex: 1;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 24px;
+        }
+        video, img {
+        width: 100%;
+        max-width: 1200px;
+        max-height: 80vh;
+        }
+        img {
+        object-fit: contain;
+        }
+    </style>
+</head>
+<body class="no-nav">
+    <div class="player-top">
+        <button class="btn-secondary" onclick="window.history.back()">Back</button>
+        <span id="mediaTitle">Now Playing</span>
+        <span></span>
+    </div>
+    <div id="media-container"></div>
+
+    <script>
+        const urlParams = new URLSearchParams(window.location.search);
+        const mediaPath = urlParams.get('path');
+        const mediaType = urlParams.get('type') || '';
+        const titleEl = document.getElementById('mediaTitle');
+        const container = document.getElementById('media-container');
+
+        if (mediaPath) {
+            const name = mediaPath.split(/[/\\]/).pop();
+            titleEl.textContent = name;
+            if (mediaType.startsWith('image')) {
+                const img = document.createElement('img');
+                img.src = `/api/media/file?path=${encodeURIComponent(mediaPath)}`;
+                img.alt = name;
+                container.appendChild(img);
+            } else {
+                const video = document.createElement('video');
+                video.controls = true;
+                const source = document.createElement('source');
+                source.src = `/api/media/file?path=${encodeURIComponent(mediaPath)}`;
+                if (mediaType) {
+                    source.type = mediaType;
+                }
+                video.appendChild(source);
+                container.appendChild(video);
+            }
+        } else {
+            container.innerHTML = '<p class="muted">No media selected.</p>';
+        }
+    </script>
+</body>
+</html>

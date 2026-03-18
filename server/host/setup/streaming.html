@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <title>Meteor | Setup</title>
+        <link rel="stylesheet" href="../style.css">
+    </head>
+    <body class="setup-page no-nav">
+        <div class="setup-shell">
+            <div class="card setup-card">
+                <div class="setup-progress">
+                    <div class="pill">Step 4 of 4</div>
+                    <div class="progress-bar"><span style="width: 100%;"></span></div>
+                </div>
+                <h1>Streaming Preferences</h1>
+                <p class="muted">You can change these later in Settings.</p>
+
+                <div class="form-stack" style="margin-top: 16px; text-align: left;">
+                    <div>
+                        <label for="streamingEnabled"><strong>Enable streaming services</strong></label>
+                        <select id="streamingEnabled">
+                            <option value="true">Yes</option>
+                            <option value="false">No</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label for="defaultService"><strong>Default streaming service</strong></label>
+                        <select id="defaultService">
+                            <option value="">None</option>
+                            <option value="YouTube">YouTube</option>
+                        </select>
+                        <p class="helper" style="margin-top: 6px;">More services can be added later.</p>
+                    </div>
+                    <div>
+                        <label for="localFiles"><strong>Allow local file playback</strong></label>
+                        <select id="localFiles">
+                            <option value="true">Yes</option>
+                            <option value="false">No</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="button-row" style="justify-content: space-between; margin-top: 18px;">
+                    <button class="btn-secondary" data-next-page="local.html">Back</button>
+                    <button class="btn-primary" onclick="completeSetup()">Complete Setup</button>
+                </div>
+                <button class="btn-secondary" style="margin-top: 10px;" onclick="skipStreaming()">Skip for now</button>
+
+                <script>
+                function submitSetup(options) {
+                    fetch('/api/setup/complete', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(options || {})
+                    })
+                    .then(res => res.json())
+                    .then(data => {
+                        if (data.ok) {
+                            window.location.href = 'select_user.html';
+                        } else {
+                            alert(data.error || 'Failed to complete setup');
+                        }
+                    })
+                    .catch(() => {
+                        alert('Failed to complete setup');
+                    });
+                }
+
+                function completeSetup() {
+                    const streamingEnabled = document.getElementById('streamingEnabled').value;
+                    const defaultService = document.getElementById('defaultService').value;
+                    const localFiles = document.getElementById('localFiles').value;
+
+                    submitSetup({
+                        streaming_enabled: streamingEnabled,
+                        default_streaming_service: defaultService,
+                        enable_local_files: localFiles
+                    });
+                }
+
+                function skipStreaming() {
+                    submitSetup({
+                        streaming_enabled: false,
+                        default_streaming_service: "",
+                        enable_local_files: true
+                    });
+                }
+                </script>
+            </div>
+        </div>
+        <script src="setup-preview.js"></script>
+    </body>
+</html>

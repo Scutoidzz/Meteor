@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <title>Meteor | New User</title>
+        <link rel="stylesheet" href="../style.css">
+        <style>
+            .error {
+            color: #ff8080;
+            font-size: 0.9rem;
+            margin-top: 8px;
+            min-height: 1.2em;
+            }
+        </style>
+    </head>
+    <body class="setup-page no-nav">
+        <div class="setup-shell">
+            <div class="card setup-card" style="text-align: left;">
+                <div class="pill">Create Account</div>
+                <h1>New user</h1>
+                <p class="muted">Use this account to access your media.</p>
+                <div class="form-stack" style="margin-top: 16px;">
+                    <div>
+                        <label for="displayName"><strong>Display name</strong></label>
+                        <input type="text" id="displayName" placeholder="e.g. Taylor">
+                    </div>
+                    <div>
+                        <label for="username"><strong>Username</strong></label>
+                        <input type="text" id="username" placeholder="e.g. taylor" autocomplete="username">
+                    </div>
+                    <div>
+                        <label for="password"><strong>Password</strong></label>
+                        <input type="password" id="password" placeholder="Create a password" autocomplete="new-password">
+                    </div>
+                    <div>
+                        <label for="confirmPassword"><strong>Confirm password</strong></label>
+                        <input type="password" id="confirmPassword" placeholder="Re-enter password" autocomplete="new-password">
+                    </div>
+                </div>
+                <div class="error" id="error"></div>
+                <div class="button-row" style="justify-content: space-between; margin-top: 12px;">
+                    <button class="btn-secondary" type="button" onclick="window.location.href='select_user.html';">Back</button>
+                    <button class="btn-primary" type="button" onclick="submit();">Create Account</button>
+                </div>
+            </div>
+        </div>
+        <script>
+            function submit() {
+                const displayName = document.getElementById('displayName').value.trim();
+                const username = document.getElementById('username').value.trim();
+                const password = document.getElementById('password').value;
+                const confirmPassword = document.getElementById('confirmPassword').value;
+                const error = document.getElementById('error');
+
+                if (!username || !password) {
+                    error.textContent = 'Username and password are required.';
+                    return;
+                }
+                if (password !== confirmPassword) {
+                    error.textContent = 'Passwords do not match.';
+                    return;
+                }
+
+                error.textContent = '';
+
+                fetch('/api/users/new', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, display_name: displayName || username, password })
+                })
+                .then(res => res.json())
+                .then(data => {
+                    if (data.error) {
+                        error.textContent = data.error;
+                    } else {
+                        window.location.href = 'select_user.html';
+                    }
+                })
+                .catch(() => {
+                    error.textContent = 'Failed to create account.';
+                });
+            }
+
+            document.getElementById('confirmPassword').addEventListener('keydown', (event) => {
+                if (event.key === 'Enter') {
+                    submit();
+                }
+            });
+        </script>
+    </body>
+</html>

@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Radio Cards</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      padding: 40px;
+      max-width: 800px;
+      margin: 0 auto;
+      line-height: 1.5;
+    }
+    h2 { margin-bottom: 16px; color: #333; }
+    
+    .card-group { 
+      display: flex; 
+      gap: 12px; 
+      flex-wrap: wrap; 
+      margin-bottom: 24px;
+    }
+
+    /* Styling for the blurb area */
+    #notes {
+      padding: 16px;
+      border-radius: 8px;
+      background: #f8f9fa;
+      border-left: 4px solid #6200ee;
+      min-height: 50px;
+      transition: all 0.3s ease;
+      color: #444;
+    }
+    #notes:empty { display: none; }
+    .note-content { animation: fadeIn 0.3s ease-in; }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(5px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+  </style>
+</head>
+<body>
+
+  <h2>Voice Configuration</h2>
+  <p>Use hotwords (disables multiple models)</p>
+  <input type="checkbox" id="hotwords">
+  <button id="saveConfig" style="margin-left: 10px; padding: 8px 16px; background: #6200ee; color: white; border: none; border-radius: 4px; cursor: pointer;">Save Configuration</button>
+  <button id="back" style="margin-left: 10px; padding: 8px 16px; background: #f5f5f5; border: 1px solid #ddd; border-radius: 4px; cursor: pointer;">Back to Dashboard</button>
+  <div class="card-group">
+    <radio-card name="voice" value="none" label="Off" note="Disables all voice features."></radio-card>
+    <radio-card name="voice" value="vosk" label="Vosk" note="Better for low end devices."></radio-card>
+    <radio-card name="voice" value="faster-whisper" label="Faster Whisper" note="OpenAI Whisper but faster. Good for midrange devices."></radio-card>
+    <radio-card name="voice" value="whisper" label="Whisper" note="OpenAI Whisper. Best local model, but requires significant resources."></radio-card>
+    <radio-card name="voice" value="cloud" label="Cloud API" note="Passes recordings to the internet for processing. Don't use this for offline or privacy."></radio-card>
+  </div>
+
+  <div id="notes">
+    </div>
+
+  <script>
+    class RadioCard extends HTMLElement {
+      connectedCallback() {
+        const name  = this.getAttribute('name');
+        const value = this.getAttribute('value');
+        const label = this.getAttribute('label') || value;
+        const note  = this.getAttribute('note') || "";
+
+        this.attachShadow({ mode: 'open' }).innerHTML = `
+          <style>
+            :host { display: inline-block; }
+            label {
+              display: flex;
+              align-items: center;
+              gap: 10px;
+              padding: 12px 20px;
+              border: 2px solid #ddd;
+              border-radius: 10px;
+              cursor: pointer;
+              font-size: 14px;
+              font-weight: 500;
+              transition: all 0.2s ease;
+              user-select: none;
+            }
+            label:hover { border-color: #6200ee; background: #f9f6ff; }
+            
+            /* Logic for the 'checked' state */
+            input:checked + span { color: #6200ee; }
+            label:has(input:checked) {
+              border-color: #6200ee;
+              background: #f3e8ff;
+              border: 2px solid white;
+            }
+            input[type="radio"] { 
+              accent-color: #6200ee; 
+              width: 16px;
+              height: 16px;
+            }
+          </style>
+          <label>
+            <input type="radio" name="${name}" value="${value}" />
+            <span>${label}</span>
+          </label>
+        `;
+
+        const input = this.shadowRoot.querySelector('input');
+
+        input.addEventListener('change', () => {
+          if (input.checked) {
+            // 1. Manually uncheck other custom elements with the same name
+            document.querySelectorAll(`radio-card[name="${name}"]`).forEach(card => {
+              if (card !== this) {
+                card.shadowRoot.querySelector('input').checked = false;
+              }
+            });
+
+            // 2. Dispatch a Custom Event that the main page can listen to
+            this.dispatchEvent(new CustomEvent('selection-changed', {
+              detail: { note: note },
+              bubbles: true,      // Allows event to go up the DOM tree
+              composed: true      // Allows event to break through the Shadow DOM boundary
+            }));
+          }
+        });
+      }
+    }
+
+    customElements.define('radio-card', RadioCard);
+
+    // --- MAIN PAGE LOGIC ---
+    const notesDiv = document.getElementById('notes');
+
+    // Listen for the custom event we created inside the Web Component
+    document.addEventListener('selection-changed', (event) => {
+      const text = event.detail.note;
+      notesDiv.innerHTML = `<div class="note-content"><strong>Info:</strong> ${text}</div>`;
+    });
+
+    // Load configuration
+    async function loadConfig() {
+      try {
+        const response = await fetch('/controlpanel/voice/config');
+        const config = await response.json();
+        
+        // Set hotwords checkbox
+        document.getElementById('hotwords').checked = config.use_hotwords || false;
+        
+        // Set radio button
+        const radio = document.querySelector(`radio-card[value="${config.voice_engine}"]`);
+        if (radio) {
+          const input = radio.shadowRoot.querySelector('input');
+          if (input) {
+            input.checked = true;
+            // Trigger the event to show the note
+            radio.dispatchEvent(new CustomEvent('selection-changed', {
+              detail: { note: radio.getAttribute('note') },
+              bubbles: true,
+              composed: true
+            }));
+          }
+        }
+      } catch (error) {
+        console.error('Failed to load config:', error);
+      }
+    }
+
+    // Save configuration
+    async function saveConfig() {
+      const selectedVoice = document.querySelector('radio-card input:checked');
+      const useHotwords = document.getElementById('hotwords').checked;
+      
+      if (!selectedVoice) {
+        alert('Please select a voice engine');
+        return;
+      }
+      
+      try {
+        const response = await fetch('/controlpanel/voice/config', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            voice_engine: selectedVoice.value,
+            use_hotwords: useHotwords
+          })
+        });
+        
+        const result = await response.json();
+        if (result.ok) {
+          alert('Configuration saved successfully!');
+        } else {
+          alert('Failed to save configuration: ' + (result.error || 'Unknown error'));
+        }
+      } catch (error) {
+        console.error('Failed to save config:', error);
+        alert('Failed to save configuration');
+      }
+    }
+
+    // Event listeners
+    document.getElementById('saveConfig').addEventListener('click', saveConfig);
+    document.getElementById('back').addEventListener('click', () => {
+      window.location.href = '/main/home.html';
+    });
+
+    // Load config when page loads
+    loadConfig();
+  </script>
+
+</body>
+</html>

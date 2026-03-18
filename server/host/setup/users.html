@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <title>Meteor | Setup</title>
+        <link rel="stylesheet" href="../style.css">
+    </head>
+    <body class="setup-page no-nav">
+        <div class="setup-shell">
+            <div class="card setup-card">
+                <div class="setup-progress">
+                    <div class="pill">Step 2 of 4</div>
+                    <div class="progress-bar"><span style="width: 50%;"></span></div>
+                </div>
+                <h1>Create Admin Account</h1>
+                <p class="muted">This account can manage users, settings, and server folders.</p>
+                <div class="form-stack" style="margin-top: 16px; text-align: left;">
+                    <div>
+                        <label for="displayName"><strong>Display name</strong></label>
+                        <input type="text" id="displayName" placeholder="e.g. Alex">
+                    </div>
+                    <div>
+                        <label for="username"><strong>Username</strong></label>
+                        <input type="text" id="username" placeholder="e.g. alex_admin" autocomplete="username">
+                    </div>
+                    <div>
+                        <label for="password"><strong>Password</strong></label>
+                        <input type="password" id="password" placeholder="Create a strong password" autocomplete="new-password">
+                    </div>
+                    <div>
+                        <label for="confirmPassword"><strong>Confirm password</strong></label>
+                        <input type="password" id="confirmPassword" placeholder="Re-enter password" autocomplete="new-password">
+                    </div>
+                </div>
+                <p class="helper" style="margin-top: 10px;">You can add more users after setup.</p>
+                <div class="button-row" style="justify-content: space-between; margin-top: 18px;">
+                    <button class="btn-secondary" data-next-page="servername.html">Back</button>
+                    <button class="btn-primary" onclick="createAdminUser()">Next</button>
+                </div>
+
+                <script>
+                function createAdminUser() {
+                    const displayName = document.getElementById('displayName').value.trim();
+                    const username = document.getElementById('username').value.trim();
+                    const password = document.getElementById('password').value;
+                    const confirmPassword = document.getElementById('confirmPassword').value;
+                    
+                    if (!username || !password) {
+                        alert('Username and password are required');
+                        return;
+                    }
+                    if (password !== confirmPassword) {
+                        alert('Passwords do not match');
+                        return;
+                    }
+                    
+                    fetch('/api/users/new', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            username: username,
+                            display_name: displayName || username,
+                            password: password,
+                            role: 'admin'
+                        })
+                    })
+                    .then(res => res.json())
+                    .then(data => {
+                        if (data.ok) {
+                            window.location.href = 'local.html';
+                        } else {
+                            alert(data.error || 'Sorry, something went wrong');
+                        }
+                    })
+                    .catch(() => {
+                        alert('Sorry, something went wrong.');
+                    });
+                }
+
+                document.getElementById('confirmPassword').addEventListener('keydown', (event) => {
+                    if (event.key === 'Enter') {
+                        createAdminUser();
+                    }
+                });
+                </script>
+
+            </div>
+        </div>
+        <script src="setup-preview.js"></script>
+    </body>
+</html>

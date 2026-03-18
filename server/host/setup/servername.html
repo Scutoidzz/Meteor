@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <title>Meteor | Setup</title>
+        <link rel="stylesheet" href="../style.css">
+    </head>
+    <body class="setup-page no-nav">
+        <div class="setup-shell">
+            <div class="card setup-card">
+                <div class="setup-progress">
+                    <div class="pill">Step 1 of 4</div>
+                    <div class="progress-bar"><span style="width: 25%;"></span></div>
+                </div>
+                <h1>Server Name</h1>
+                <p class="muted">Give your server a name so it shows up everywhere.</p>
+                <div class="form-stack" style="margin-top: 16px;">
+                    <div style="text-align: left;">
+                        <label for="serverName"><strong>Server name</strong></label>
+                        <input type="text" id="serverName" placeholder="e.g. Living Room Media" autocomplete="organization">
+                    </div>
+                </div>
+                <div class="button-row" style="justify-content: space-between; margin-top: 18px;">
+                    <button class="btn-secondary" data-next-page="mainpage.html">Back</button>
+                    <button class="btn-primary" onclick="saveServerName()">Next</button>
+                </div>
+
+                <script>
+                function saveServerName() {
+                    const serverName = document.getElementById('serverName').value.trim();
+                    if (!serverName) {
+                        alert('Please enter a server name');
+                        return;
+                    }
+                    
+                    fetch('/api/setup/config', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ server_name: serverName })
+                    })
+                    .then(res => res.json())
+                    .then(data => {
+                        if (data.ok) {
+                            window.location.href = 'users.html';
+                        } else {
+                            alert(data.error || 'Failed to save server name');
+                        }
+                    })
+                    .catch(() => {
+                        alert('Failed to save server name');
+                    });
+                }
+
+                document.getElementById('serverName').addEventListener('keydown', (event) => {
+                    if (event.key === 'Enter') {
+                        saveServerName();
+                    }
+                });
+                </script>
+
+            </div>
+        </div>
+        <script src="setup-preview.js"></script>
+    </body>
+</html>

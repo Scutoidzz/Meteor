@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <title>Meteor | Setup</title>
+        <link rel="stylesheet" href="../style.css">
+    </head>
+    <body class="setup-page no-nav">
+        <div class="setup-shell">
+            <div class="card setup-card">
+                <div class="setup-progress">
+                    <div class="pill">Step 3 of 4</div>
+                    <div class="progress-bar"><span style="width: 75%;"></span></div>
+                </div>
+                <h1>Media Folders</h1>
+                <p class="muted">Add folders that contain your music and videos. You can edit this later in Settings.</p>
+
+                <div id="filePathsList" class="form-stack" style="margin-top: 16px; text-align: left;"></div>
+
+                <div class="button-row" style="justify-content: space-between; margin-top: 12px;">
+                    <button class="btn-secondary" type="button" onclick="addFilePath();">Add another folder</button>
+                    <button class="btn-primary" type="button" onclick="saveFilePaths()">Next</button>
+                </div>
+                <p class="helper" style="margin-top: 12px; text-align: left;">Example: <code>/home/alex/Music</code> or <code>D:\\Media</code></p>
+            </div>
+        </div>
+        <script>
+            function addFilePath(value) {
+                const list = document.getElementById('filePathsList');
+                const item = document.createElement('div');
+                item.className = 'form-row';
+                item.innerHTML = `
+                    <input type="text" placeholder="Folder path" value="${value || ''}">
+                    <button class="btn-secondary" type="button" onclick="this.parentElement.remove();">Remove</button>
+                `;
+                list.appendChild(item);
+            }
+
+            function saveFilePaths() {
+                const inputs = document.querySelectorAll('#filePathsList input[type="text"]');
+                const filePaths = Array.from(inputs).map(input => input.value.trim()).filter(path => path);
+
+                fetch('/api/setup/local', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ file_paths: filePaths })
+                })
+                .then(res => res.json())
+                .then(data => {
+                    if (data.ok) {
+                        window.location.href = 'streaming.html';
+                    } else {
+                        alert(data.error || 'Failed to save file paths');
+                    }
+                })
+                .catch(() => {
+                    alert('Failed to save file paths');
+                });
+            }
+
+            window.addEventListener('DOMContentLoaded', () => addFilePath(''));
+        </script>
+        <script src="setup-preview.js"></script>
+    </body>
+</html>

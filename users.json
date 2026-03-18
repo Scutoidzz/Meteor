@@ -1,0 +1,15 @@
+{
+    "users": [
+        {
+            "username": "testuser",
+            "password_hash": "abc123",
+            "role": "admin"
+        },
+        {
+            "username": "stucoid",
+            "display_name": "Stucoid",
+            "role": "user",
+            "password_hash": "f2efd38cdf7ba84f06825baec0d89e4c7acdf8c345829db41e8a648899e9557b"
+        }
+    ]
+}
